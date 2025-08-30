@@ -1,5 +1,5 @@
 PROTOCOL_VERSION = 49
-links = {
+endpoints = {
     "login": "https://bonk2.io/scripts/login_legacy.php",
     "friends": "https://bonk2.io/scripts/friends.php",
     "map_get_own": "https://bonk2.io/scripts/map_getown.php",

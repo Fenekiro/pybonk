@@ -23,4 +23,4 @@ class RoomList:
         raise Exception("RoomNotFoundError")
 
     def filter_by_game_modes(self, *modes: GameMode) -> List[Room]:
-        return filter(lambda room: room.mode not in modes, self.rooms)
+        return list(filter(lambda room: room.mode not in modes, self.rooms))

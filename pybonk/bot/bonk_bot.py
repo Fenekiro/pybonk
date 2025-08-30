@@ -1,15 +1,13 @@
 import json
 from typing import List, Union
 from urllib.parse import unquote_plus
-import requests
 import re
 import asyncio
 import nest_asyncio
 import aiohttp
-from functools import cached_property
 
-from ..bonk_online import BonkOnline
-from ..settings import PROTOCOL_VERSION, links
+from pybonk.types.bonk_online import BonkOnline
+from ..settings import PROTOCOL_VERSION, endpoints
 from pybonk.maps.bonk1_map import Bonk1Map
 from pybonk.maps.bonk2_map import Bonk2Map
 from pybonk.room_list.room import Room
@@ -26,40 +24,41 @@ nest_asyncio.apply()
 class BonkBot(BotEventHandler):
     """
     Base class for AccountBonkBot and GuestBonkBot.
-
-    :param username: bot username.
-    :param xp: amount of xp on bot's account.
     """
 
-    def __init__(
-        self,
-        username: str,
-        xp: int,
-        avatars: List[str],
-        main_avatar: Avatar
-    ) -> None:
+    def __init__(self) -> None:
         super().__init__()
-        self.username: str = username
-        self.xp: int = xp
-        self._raw_avatars: List[str] = avatars
-        self.main_avatar: Union[Avatar, None] = main_avatar
-        self.games: List[Game] = []
-        self.aiohttp_session: Union[aiohttp.ClientSession, None] = None
+
+        self._username: Union[None, str] = None
+        self._xp: Union[None, int] = None
+        self._raw_avatars: Union[None, List[str]] = None
+        self._main_avatar: Union[Avatar, None] = None
+        self._games: Union[None, List[Game]] = None
+        self._aiohttp_session: Union[aiohttp.ClientSession, None] = None
 
     @property
-    def is_guest(self) -> bool:
-        return self.xp == 0
+    def username(self) -> str:
+        if self._username is None:
+            raise Exception("Bot is not logged in")
+
+        return self._username
+
+    @username.setter
+    def username(self, username: str) -> None:
+        self._username = username
 
     @property
-    def level(self) -> int:
-        """Returns account level from its XP."""
+    def xp(self) -> int:
+        if self._xp is None:
+            raise Exception("Bot is not logged in")
 
-        if self.is_guest:
-            return 0
+        return self._xp
 
-        return int((self.xp / 100) ** 0.5 + 1)
+    @xp.setter
+    def xp(self, xp: int) -> None:
+        self._xp = xp
 
-    @cached_property
+    @property
     def avatars(self) -> List[Avatar]:
         """Returns account avatars from encoded base64 strings."""
 
@@ -79,8 +78,15 @@ class BonkBot(BotEventHandler):
             Avatar().load_from_json({"layers": [], "bc": 4492031})
         ]
 
+    @avatars.setter
+    def avatars(self, raw_avatars: List[str]) -> None:
+        self._raw_avatars = raw_avatars
+
     @property
     def main_avatar(self) -> Avatar:
+        if self._main_avatar is None:
+            raise Exception("Bot is not logged in")
+
         return self._main_avatar
 
     @main_avatar.setter
@@ -99,22 +105,40 @@ class BonkBot(BotEventHandler):
         else:
             self._main_avatar = avatar
 
-    def run(self) -> None:
-        asyncio.run(self._run())
+    @property
+    def games(self) -> List[Game]:
+        if self._games is None:
+            raise Exception("Bot is not logged in")
 
-    async def _run(self) -> None:
-        """Prevents room connections from stopping and "starts" the bot."""
+        return self._games
 
-        self.aiohttp_session = aiohttp.ClientSession()
+    @games.setter
+    def games(self, games: List[Game]) -> None:
+        self._games = games
 
-        for attr in dir(self):
-            if attr.startswith("on"):
-                self.event_emitter.on(attr.replace("on_", ""), getattr(self, attr))
+    @property
+    def aiohttp_session(self) -> aiohttp.ClientSession:
+        if self._aiohttp_session is None:
+            raise Exception("Bot is not logged in")
 
-        self.event_emitter.emit("ready")
+        return self._aiohttp_session
 
-        while not self.aiohttp_session.closed:
-            await asyncio.sleep(0.1)
+    @aiohttp_session.setter
+    def aiohttp_session(self, aiohttp_session: aiohttp.ClientSession) -> None:
+        self._aiohttp_session = aiohttp_session
+
+    @property
+    def is_guest(self) -> bool:
+        return self.xp == 0
+
+    @property
+    def level(self) -> int:
+        """Returns account level from its XP."""
+
+        if self.is_guest:
+            return 0
+
+        return int((self.xp / 100) ** 0.5 + 1)
 
     async def stop(self) -> None:
         """Stops the bot."""
@@ -243,7 +267,7 @@ class BonkBot(BotEventHandler):
         """
 
         async with self.aiohttp_session.post(
-            url=links["map_get_b2"],
+            url=endpoints["map_get_b2"],
             data={
                 "searchauthor": str(by_author).lower(),
                 "searchmapname": str(by_name).lower(),
@@ -282,7 +306,7 @@ class BonkBot(BotEventHandler):
         """
 
         async with self.aiohttp_session.post(
-            url=links["map_get_b1"],
+            url=endpoints["map_get_b1"],
             data={
                 "searchsort": "ctr",
                 "searchauthor": str(by_author).lower(),
@@ -314,7 +338,7 @@ class BonkBot(BotEventHandler):
         """Returns list of rooms in the bonk.io room list."""
 
         async with self.aiohttp_session.post(
-            url=links["rooms"],
+            url=endpoints["rooms"],
             data={
                 "version": PROTOCOL_VERSION,
                 "gl": "n",

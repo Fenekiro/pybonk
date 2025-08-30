@@ -5,7 +5,9 @@ from pybonk.types.game_modes import GameMode
 from pybonk.parsers import mode_from_short_name
 
 if TYPE_CHECKING:
-    from pybonk.bot.bonk_bot import BonkBot, GuestBonkBot, AccountBonkBot
+    from pybonk.bot.bonk_bot import BonkBot
+    from pybonk.bot.guest_bonk_bot import GuestBonkBot
+    from pybonk.bot.account_bonk_bot import AccountBonkBot
 
 
 class Room:

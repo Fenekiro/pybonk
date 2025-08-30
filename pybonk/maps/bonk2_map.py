@@ -1,16 +1,18 @@
 from dataclasses import dataclass
 from functools import cached_property
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 
 from pybonk.parsers import decode_bonk_map
 
 if TYPE_CHECKING:
-    from pybonk.bot import AccountBonkBot
+    from pybonk.bot.account_bonk_bot import AccountBonkBot
+    from pybonk.bot.guest_bonk_bot import GuestBonkBot
+    from pybonk.bot.bonk_bot import BonkBot
 
 
 @dataclass
 class Bonk2Map:
-    bot: "AccountBonkBot"
+    bot: "Union[AccountBonkBot, GuestBonkBot, BonkBot]"
     map_id: int
     encoded_data: str
     name: str

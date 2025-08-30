@@ -1,4 +1,4 @@
-from pybonk.settings import links
+from pybonk.settings import endpoints
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -31,7 +31,7 @@ class FriendRequest:
         """Accept friend request."""
 
         await self.bot.aiohttp_session.post(
-            url=links["friends"],
+            url=endpoints["friends"],
             data={
                 "token": self.bot.token,
                 "task": "accept",
@@ -43,7 +43,7 @@ class FriendRequest:
         """Decline friend request."""
 
         await self.bot.aiohttp_session.post(
-            url=links["friends"],
+            url=endpoints["friends"],
             data={
                 "token": self.bot.token,
                 "task": "deleterequest",

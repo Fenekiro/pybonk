@@ -5,7 +5,7 @@ from pybonk.bot.bonk_bot import BonkBot
 from pybonk.bot.guest_bonk_bot import GuestBonkBot
 from pybonk.bot.account_bonk_bot import AccountBonkBot
 from pybonk.game.game import Player, Game
-from pybonk.settings import links
+from pybonk.settings import endpoints
 
 
 class FriendRequest:
@@ -38,7 +38,7 @@ class FriendRequest:
         if not bot.is_guest and not self.player.is_guest:
             tasks.append(
                 bot.aiohttp_session.post(
-                    url=links["friends"],
+                    url=endpoints["friends"],
                     data={
                         "token": bot.token,
                         "task": "send",

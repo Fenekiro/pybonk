@@ -1,4 +1,3 @@
-import json
 from typing import List, TYPE_CHECKING
 
 from pybonk.avatar.avatar_layer import Layer

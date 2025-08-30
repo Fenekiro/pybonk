@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Union
 
-from pybonk.settings import links
+from pybonk.settings import endpoints
 
 if TYPE_CHECKING:
     from pybonk.bot.account_bonk_bot import AccountBonkBot
@@ -34,7 +34,7 @@ class Friend:
         """Remove friend from account friend list."""
 
         await self.bot.aiohttp_session.post(
-            url=links["friends"],
+            url=endpoints["friends"],
             data={
                 "token": self.bot.token,
                 "task": "unfriend",

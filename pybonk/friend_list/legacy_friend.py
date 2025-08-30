@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from pybonk.bot.account_bonk_bot import AccountBonkBot
 
-from pybonk.settings import links
+from pybonk.settings import endpoints
 
 
 class LegacyFriend:
@@ -22,7 +22,7 @@ class LegacyFriend:
         """Sends friend request to user from legacy friend info."""
 
         await self.bot.aiohttp_session.post(
-            url=links["friends"],
+            url=endpoints["friends"],
             data={
                 "token": self.bot.token,
                 "task": "send",

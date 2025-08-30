@@ -57,10 +57,6 @@ class MapRequestAsHost:
                 GameConnectionError("Cannot set map, bot is not a host", self.game)
             )
         else:
-            await self.game.socket_client.emit(
-                23,
-                {
-                    "m": self.level_data
-                }
-            )
+            await self.game.socket_client.emit(23, {"m": self.level_data})
+
             self.game._bonk_map = self.bonk_map

@@ -2,11 +2,11 @@ from functools import cached_property
 from typing import TYPE_CHECKING
 from dataclasses import dataclass
 
-from pybonk.settings import links
+from pybonk.settings import endpoints
 from pybonk.parsers import decode_bonk_map
 
 if TYPE_CHECKING:
-    from pybonk.bot import AccountBonkBot
+    from pybonk.bot.account_bonk_bot import AccountBonkBot
 
 
 @dataclass
@@ -30,7 +30,7 @@ class OwnMap:
         """Deletes bot's account own map."""
 
         await self.bot.aiohttp_session.post(
-            url=links["map_delete"],
+            url=endpoints["map_delete"],
             data={
                 "token": self.bot.token,
                 "mapid": self.map_id,

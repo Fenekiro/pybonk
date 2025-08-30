@@ -3,8 +3,8 @@ requires = ["setuptools >= 61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "bonk_bot"
-version = "2.0.4"
+name = "pybonk"
+version = "0.0.1"
 description = "Python API wrapper for bonk.io web game."
 
 readme = "README.md"
@@ -25,7 +25,7 @@ dependencies = [
 ]
 requires-python = ">= 3.8"
 
-keywords = ["bonk", "bonk.io", "bots", "api", "bonk-bot"]
+keywords = ["bonk", "bonk.io", "bots", "bot", "api", "bonk-bot"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -39,4 +39,4 @@ classifiers = [
 ]
 
 [project.urls]
-Repository = "https://github.com/Safizapi/bonk_bot"
+Repository = "https://github.com/Fenekiro/pybonk"

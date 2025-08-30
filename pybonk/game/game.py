@@ -16,7 +16,7 @@ from pybonk.game.match import Match
 from pybonk.game.message import Message
 from pybonk.game.player import Player
 from pybonk.game.player_move import PlayerMove
-from pybonk.settings import PROTOCOL_VERSION, links
+from pybonk.settings import PROTOCOL_VERSION, endpoints
 from pybonk.types.game_modes import *
 from pybonk.types.servers import *
 from pybonk.game.teams import *
@@ -372,6 +372,8 @@ class Game:
             if player.short_id == short_id:
                 return player
 
+        raise Exception(f"Player {short_id} not found")
+
     async def __create(
         self,
         name="",
@@ -485,7 +487,7 @@ class Game:
         """
 
         async with self.bot.aiohttp_session.post(
-            url=links["get_room_address"],
+            url=endpoints["get_room_address"],
             data={
                 "id": room_id
             }
@@ -606,7 +608,7 @@ class Game:
         """
 
         async with self.bot.aiohttp_session.post(
-            url=links["get_room_address"],
+            url=endpoints["get_room_address"],
             data={
                 "id": room_id
             }

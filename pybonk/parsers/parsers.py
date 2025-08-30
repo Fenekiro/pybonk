@@ -1,6 +1,4 @@
 import base64
-import datetime
-import json
 from typing import Union, List
 from urllib.parse import unquote
 
@@ -9,7 +7,6 @@ from lzstring import LZString
 from pybonk.avatar.avatar_layer import Layer
 from pybonk.game.game_inputs import GameInput
 from pybonk.parsers.byte_buffer import ByteBuffer
-from pybonk.types.game_modes import GameMode
 from pybonk.game.teams import Team
 from pybonk.types.game_modes import *
 from pybonk.avatar.avatar import Avatar
@@ -46,7 +43,7 @@ def decode_avatar(encoded_avatar: str) -> Avatar:
         return None
 
     if encoded_avatar == "":
-        return Avatar().load_from_json(json.dumps({"layers": [], "bc": 4492031}))
+        return Avatar().load_from_json({"layers": [], "bc": 4492031})
 
     byte_buffer = ByteBuffer(base64.b64decode(unquote(encoded_avatar)))
     encoded_avatar = Avatar()
@@ -510,42 +507,6 @@ def decode_bonk_map(encoded_map: str) -> dict:
         physics["joints"].append(joint)
 
     return map_data
-
-
-# Credits to https://shaunx777.github.io/dbid2date/
-def db_id_to_date(db_id: int) -> Union[datetime.datetime, str]:
-    """
-    Returns approximate account date creating from account database ID.
-
-    :param db_id: account database ID.
-    """
-
-    json_path = __file__.replace(r"parsers\parsers.py", "") + "dbids.json"
-
-    with open(json_path) as file:
-        db_ids = json.load(file)
-        index = 0
-
-    while index < len(db_ids) and db_ids[index]["number"] < db_id:
-        index += 1
-
-    if index == 0:
-        return f"Before {db_ids[0]['date']}"
-    elif index == len(db_ids):
-        return f"After {db_ids[-1]['date']}"
-
-    first_number = db_ids[index - 1]["number"]
-    second_number = db_ids[index]["number"]
-
-    first_date = db_ids[index - 1]["date"]
-    second_date = db_ids[index]["date"]
-    first_timestamp = datetime.datetime.strptime(first_date, "%Y-%m-%d").timestamp()
-    second_timestamp = datetime.datetime.strptime(second_date, "%Y-%m-%d").timestamp()
-
-    diff = (db_id - first_number) / (second_number - first_number)
-    time = first_timestamp + diff * (second_timestamp - first_timestamp)
-
-    return datetime.datetime.fromtimestamp(time).strftime("%Y-%m-%d")
 
 
 def team_from_number(number: int) -> Team:

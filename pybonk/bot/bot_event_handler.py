@@ -9,17 +9,13 @@ class BotEventHandler:
     """Class for holding event handlers templates."""
 
     def __init__(self) -> None:
-        self._event_emitter = pymitter.EventEmitter()
+        self.event_emitter = pymitter.EventEmitter()
         self._errors_handled = False
 
         @self.event_emitter.on("error")
         def on_error(error: Exception):
             if not self._errors_handled:
                 raise error
-
-    @property
-    def event_emitter(self) -> pymitter.EventEmitter:
-        return self._event_emitter
 
     # Event handle functions templates
     async def _on_ready(self) -> None:
