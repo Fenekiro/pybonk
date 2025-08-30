@@ -90,7 +90,7 @@ from pybonk import GuestBonkBot, Game, Message
 
 
 class MyBot(GuestBonkBot):
-    async def on_ready(self) -> None:
+    async def on_ready(self):
         bot.main_avatar = bot.avatars[0]
 
         await bot.create_game(name="Cool room", max_players=4)
