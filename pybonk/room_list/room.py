@@ -1,3 +1,4 @@
+import asyncio
 from typing import TYPE_CHECKING, Union
 
 from pybonk.game.game import Game
@@ -5,7 +6,7 @@ from pybonk.types.game_modes import GameMode
 from pybonk.parsers import mode_from_short_name
 
 if TYPE_CHECKING:
-    from pybonk.bot.bonk_bot import BonkBot
+    from pybonk.bot.bonk_bot_base import BonkBotBase
     from pybonk.bot.guest_bonk_bot import GuestBonkBot
     from pybonk.bot.account_bonk_bot import AccountBonkBot
 
@@ -27,7 +28,7 @@ class Room:
 
     def __init__(
         self,
-        bot: "Union[BonkBot, GuestBonkBot, AccountBonkBot]",
+        bot: "Union[BonkBotBase, GuestBonkBot, AccountBonkBot]",
         room_id: int,
         name: str,
         players: int,
@@ -37,7 +38,7 @@ class Room:
         min_level: int,
         max_level: int
     ) -> None:
-        self.bot: "Union[BonkBot, GuestBonkBot, AccountBonkBot]" = bot
+        self.bot: "Union[BonkBotBase, GuestBonkBot, AccountBonkBot]" = bot
         self.id: int = room_id
         self.name: str = name
         self.players: int = players
@@ -51,7 +52,7 @@ class Room:
     def mode(self) -> GameMode:
         return mode_from_short_name(self._mode)
 
-    async def join(self, password="") -> Game:
+    async def join(self, password: str = "") -> Game:
         """
         Joins game from room list.
 
@@ -70,7 +71,7 @@ class Room:
             asyncio.run(main())
         """
 
-        return Game(
+        game = Game(
             self.bot,
             None,
             self.name,
@@ -81,3 +82,7 @@ class Room:
             False,
             game_join_params=[self.id, password]
         )
+
+        asyncio.create_task(game.connect())
+
+        return game

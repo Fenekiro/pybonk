@@ -9,6 +9,7 @@ Supported python versions: 3.8+
 Package is currently unavailable on PyPI
 ## Bot example
 ### Guest bot
+
 ```py
 from pybonk import GuestBonkBot, Game, Message
 
@@ -47,6 +48,7 @@ async def on_game_disconnect(game: Game):
 bot.login("Fenekiro")
 ```
 ### Account bot
+
 ```py
 from pybonk import AccountBonkBot, Game, Message
 
@@ -85,6 +87,7 @@ async def on_game_disconnect(game: Game):
 bot.login("Fenekiro", "123")
 ```
 ### Defining bot through class inheritance
+
 ```py
 from pybonk import GuestBonkBot, Game, Message
 

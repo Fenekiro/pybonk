@@ -1,7 +1,7 @@
 import asyncio
 from typing import Union
 
-from pybonk.bot.bonk_bot import BonkBot
+from pybonk.bot.bonk_bot_base import BonkBotBase
 from pybonk.bot.guest_bonk_bot import GuestBonkBot
 from pybonk.bot.account_bonk_bot import AccountBonkBot
 from pybonk.game.game import Player, Game
@@ -19,11 +19,11 @@ class FriendRequest:
     def __init__(
         self,
         game: Game,
-        bot: "Union[BonkBot, GuestBonkBot, AccountBonkBot]",
+        bot: "Union[BonkBotBase, GuestBonkBot, AccountBonkBot]",
         player: Player
     ) -> None:
         self.game: Game = game
-        self.bot: "Union[BonkBot, GuestBonkBot, AccountBonkBot]" = bot
+        self.bot: "Union[BonkBotBase, GuestBonkBot, AccountBonkBot]" = bot
         self.player: Player = player
 
     async def accept(self) -> None:

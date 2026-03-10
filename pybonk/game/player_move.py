@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import List, TYPE_CHECKING
 
-from pybonk.game.game_inputs import GameInput
+from pybonk.game.player_input import PlayerInput
 from pybonk.game.game import Match, Player
 
 if TYPE_CHECKING:
@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class PlayerMove:
-    input_keys: List[GameInput]
+    input_keys: List[PlayerInput]
     game: "Game"
     match: Match
     player: Player

@@ -56,7 +56,7 @@ class Friend:
             friend = [friend for friend in friend_list.get_friends() if friend.username == "test" and friend.room_id][0]
 
             async def main():
-                game = friend.join_game()
+                game = ..?[await]?.. friend.join_game()
                 await game.send_message("Hello!")
 
                 await bot.run()

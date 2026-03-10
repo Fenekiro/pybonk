@@ -3,17 +3,17 @@ from functools import cached_property
 from typing import Union, List
 import aiohttp
 
-from pybonk.bot.bonk_bot import BonkBot
+from pybonk.avatar import Avatar
+from pybonk.bot.bonk_bot_base import BonkBotBase
 from pybonk.bot.exceptions import BonkLoginError
 from pybonk.friend_list.friend_list import FriendList
 from pybonk.friend_list.legacy_friend import LegacyFriend
-from pybonk.maps.bonk2_map import Bonk2Map
-from pybonk.maps.own_map import OwnMap
-from pybonk.parsers import decode_avatar
+from pybonk.maps.partial_bonk2_map import PartialBonk2Map
+from pybonk.maps.partial_own_bonk_map import PartialOwnBonkMap
 from pybonk.settings import endpoints
 
 
-class AccountBonkBot(BonkBot):
+class AccountBonkBot(BonkBotBase):
     """
     Bot class for bonk.io account.
     """
@@ -48,10 +48,7 @@ class AccountBonkBot(BonkBot):
 
         return [LegacyFriend(self, friend) for friend in self._raw_legacy_friends.split("#")]
 
-    def login(self, username: str, password: str) -> None:
-        asyncio.run(self._login(username, password))
-
-    async def _login(self, username: str, password: str) -> None:
+    async def login(self, username: str, password: str) -> None:
         """Prevents room connections from stopping and "starts" the bot."""
 
         self.aiohttp_session = aiohttp.ClientSession()
@@ -86,19 +83,19 @@ class AccountBonkBot(BonkBot):
         self.username = username
         self.xp = json_data["xp"]
         self.avatars = avatars
-        self.main_avatar = decode_avatar(avatars[json_data["activeAvatarNumber"] - 1])
+        self.main_avatar = Avatar.from_encoded(avatars[json_data["activeAvatarNumber"] - 1])
         self.games = []
 
         for attr in dir(self):
             if attr.startswith("on"):
-                self.event_emitter.on(attr.replace("on_", ""), getattr(self, attr))
+                self._event_emitter.on(attr.replace("on_", ""), getattr(self, attr))
 
-        self.event_emitter.emit("ready")
+        await self._event_emitter.emit_async("ready")
 
         while not self.aiohttp_session.closed:
             await asyncio.sleep(0.1)
 
-    async def fetch_own_maps(self) -> List[OwnMap]:
+    async def fetch_own_maps(self) -> List[PartialOwnBonkMap]:
         """Returns list of maps created on the account."""
 
         async with self.aiohttp_session.post(
@@ -111,7 +108,7 @@ class AccountBonkBot(BonkBot):
             data = await resp.json()
 
         return [
-            OwnMap(
+            PartialOwnBonkMap(
                 self,
                 bonk_map["id"],
                 bonk_map["leveldata"],
@@ -124,7 +121,7 @@ class AccountBonkBot(BonkBot):
             for bonk_map in data["maps"]
         ]
 
-    async def fetch_favorite_maps(self) -> List[Bonk2Map]:
+    async def fetch_favorite_maps(self) -> List[PartialBonk2Map]:
         async with self.aiohttp_session.post(
             url=endpoints["map_get_fav"],
             data={
@@ -135,7 +132,7 @@ class AccountBonkBot(BonkBot):
             data = await response.json()
 
         return [
-            Bonk2Map(
+            PartialBonk2Map(
                 self,
                 bonk_map["id"],
                 bonk_map["leveldata"],

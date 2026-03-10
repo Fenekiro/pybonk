@@ -3,11 +3,11 @@ from typing import Union, TYPE_CHECKING
 import socketio
 
 from pybonk.game.teams import Team
-from pybonk.avatar.avatar import Avatar
+from pybonk.avatar import Avatar
 from pybonk.game.exceptions import GameConnectionError
 
 if TYPE_CHECKING:
-    from pybonk.bot.bonk_bot import BonkBot
+    from pybonk.bot.bonk_bot_base import BonkBotBase
     from pybonk.bot.guest_bonk_bot import GuestBonkBot
     from pybonk.bot.account_bonk_bot import AccountBonkBot
     from pybonk.game.game import Game
@@ -28,12 +28,12 @@ class Player:
     :param is_tabbed: indicates whether player is tabbed or not.
     :param team: Teams' class that indicates player's team.
     :param short_id: player's id in the game.
-    :param avatar: player's avatar.
+    :param avatar: player's avatars.
     """
 
     def __init__(
         self,
-        bot: "Union[BonkBot, GuestBonkBot, AccountBonkBot]",
+        bot: "Union[BonkBotBase, GuestBonkBot, AccountBonkBot]",
         game: "Game",
         is_bot: bool,
         is_host: bool,
@@ -47,7 +47,7 @@ class Player:
         short_id: int,
         avatar: Avatar
     ) -> None:
-        self.bot: "Union[BonkBot, GuestBonkBot, AccountBonkBot]" = bot
+        self.bot: "Union[BonkBotBase, GuestBonkBot, AccountBonkBot]" = bot
         self.is_bot: bool = is_bot
         self.is_host = is_host
         self.game: "Game" = game
@@ -58,7 +58,7 @@ class Player:
         self.is_tabbed: bool = is_tabbed
         self.ping: Union[int, None] = None
         self.team: Team = team
-        self.balanced_by: int = 0
+        self.balance: int = 0
         self.short_id: int = short_id
         self.avatar: Avatar = avatar
         self.__socket_client: socketio.AsyncClient = self.game.socket_client
@@ -68,7 +68,7 @@ class Player:
         """Kick player from game."""
 
         if not self.game.is_host:
-            self.bot.event_emitter.emit(
+            await self.bot.event_emitter.emit_async(
                 "error",
                 GameConnectionError("Cannot kick player, bot is not a host", self.game)
             )
@@ -85,7 +85,7 @@ class Player:
         """Ban player from game."""
 
         if not self.game.is_host:
-            self.bot.event_emitter.emit(
+            await self.bot.event_emitter.emit_async(
                 "error",
                 GameConnectionError("Cannot ban player, bot is not a host", self.game)
             )
@@ -106,7 +106,7 @@ class Player:
         """
 
         if not self.game.is_host:
-            self.bot.event_emitter.emit(
+            await self.bot.event_emitter.emit_async(
                 "error",
                 GameConnectionError("Cannot move player to team, bot is not a host", self.game)
             )
@@ -119,7 +119,7 @@ class Player:
                 }
             )
 
-    async def balance(self, percents: int) -> None:
+    async def set_balance(self, percents: int) -> None:
         """
         Nerf/buff player.
 
@@ -127,7 +127,7 @@ class Player:
         """
 
         if not self.game.is_host:
-            self.bot.event_emitter.emit(
+            await self.bot.event_emitter.emit_async(
                 "error",
                 GameConnectionError("Cannot balance player, bot is not a host", self.game)
             )
@@ -147,7 +147,7 @@ class Player:
         """Give the host permissions to player."""
 
         if not self.game.is_host:
-            self.bot.event_emitter.emit(
+            await self.bot.event_emitter.emit_async(
                 "error",
                 GameConnectionError("Cannot give host, bot is not a host", self.game)
             )

@@ -8,5 +8,6 @@ endpoints = {
     "map_get_b1": "https://bonk2.io/scripts/map_b1_getsearch.php",
     "map_delete": "https://bonk2.io/scripts/map_delete.php",
     "rooms": "https://bonk2.io/scripts/getrooms.php",
-    "get_room_address": "https://bonk2.io/scripts/getroomaddress.php"
+    "get_room_address": "https://bonk2.io/scripts/getroomaddress.php",
+    "auto_join": "https://bonk2.io/scripts/autojoin.php",
 }

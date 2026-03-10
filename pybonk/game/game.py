@@ -1,17 +1,16 @@
 import asyncio
+import json
 import random
 from random import shuffle
 from string import ascii_lowercase
 import socketio
-import re
 from typing import List, Union, TYPE_CHECKING
 
-from pybonk.avatar.avatar import Avatar
-from pybonk.maps.bonk1_map import Bonk1Map
-from pybonk.maps.bonk2_map import Bonk2Map
-from pybonk.maps.own_map import OwnMap
-from pybonk.game.map_request_as_client import MapRequestAsClient
-from pybonk.game.map_request_as_host import MapRequestAsHost
+from pybonk.avatar import Avatar
+from pybonk.game.player_input import move_direction_from_number
+from pybonk.maps import *
+from pybonk.game.map_request_client_pov import MapRequestClientPov
+from pybonk.game.map_request_host_pov import MapRequestHostPov
 from pybonk.game.match import Match
 from pybonk.game.message import Message
 from pybonk.game.player import Player
@@ -23,13 +22,11 @@ from pybonk.game.teams import *
 from pybonk.game.exceptions import GameConnectionError
 from pybonk.parsers.parsers import (
     team_from_number,
-    mode_from_short_name,
-    move_direction_from_number,
-    decode_bonk_map_metadata
+    mode_from_short_name
 )
 
 if TYPE_CHECKING:
-    from pybonk.bot.bonk_bot import BonkBot
+    from pybonk.bot.bonk_bot_base import BonkBotBase
     from pybonk.bot.guest_bonk_bot import GuestBonkBot
     from pybonk.bot.account_bonk_bot import AccountBonkBot
     from pybonk.game.friend_request import FriendRequest
@@ -55,7 +52,7 @@ class Game:
 
     def __init__(
         self,
-        bot: "Union[BonkBot, GuestBonkBot, AccountBonkBot]",
+        bot: "Union[BonkBotBase, GuestBonkBot, AccountBonkBot]",
         server: Union[Server, None],
         room_name: str,
         is_host: bool,
@@ -66,7 +63,7 @@ class Game:
         game_create_params: Union[list, None] = None,
         game_join_params: Union[list, None] = None
     ) -> None:
-        self.bot: "Union[BonkBot, GuestBonkBot, AccountBonkBot]" = bot
+        self.bot: "Union[BonkBotBase, GuestBonkBot, AccountBonkBot]" = bot
         self.server: Union[Server, None] = server
         self.room_name: str = room_name
         self.room_password = ""
@@ -85,17 +82,10 @@ class Game:
         self.teams = False
         self.team_lock = False
         self.rounds = 3
-        self.bonk_map: Union[OwnMap, Bonk2Map, Bonk1Map, None] = Bonk2Map(
-            self.bot,
-            1068447,
-            "ILAcJAhBFBjBzCTlMiAJgZQEoAYCS8AsgBoCaAHhgJ4BGAzAHIA22AtgJwB2EkXiIAKJkQ0YAAlYnAF4AtAKqyAbrIDuwAMKx6QwQCYAZsDER8wACLrByMeZBnxiGOLQo0GlJ5SqN1r-6R5SFUTG2ABAJRrAAtIyIAxYEYvazNPaABxYzjkcwB6AFZ8AwAXeWwNXBEoaHwASzTUYFgAeRybDMJ2z3kNevTxcwj2okgG7pRE2AApT0FIPNCkaBcJiecNJahgA1xPUZC17vlzczr0ohbGo5uQROgAFjmFrduIfMEM6g49LgAFIa8aCCNpuHZ7N6ePIARkgAGclOgAA7SVRPCBBQEoFYcSGeP4cB4Aewo0nEACcAIYANSQ93RyHmizxuTyAGsvj9-ljgDAQZ40LsWcg8gA2TDiADs1ME0BKWQxkB5y3EuOFED+AGpiaSKTS6cYGUgma9IfkKMxQGxxNRqQAZPy84Gg5CCiHq4B5DjwxEotGBJXDCA4j0gP55SkAU2YAHVqaoAFZKdR3Q3PZke-JFUrlSrVJ38sFC0N5TWi6nRaAUAx25KK5XB1Wh4DhnVkqm0iD09Omt5+CuU6AkB4tPRAwuu8Gh1yyAzTaKgZiYKj1oOiJuhsR22fiUDSfDoRrdqIvUPWT7fX4AiJ8l1NYvqtCQanSOq0eCUvKSiKYtfGDcemIUaxvGSYpsAx6MqeHrWOIDyCNEsB6MwDwANLjnevBTs2ORssA7o4fI+FeGIf52GQrgTOGbLRJq0LYIIdrYAIkBGvgsAZBQ0ToBokC4AwCySnkwkicJKYGJqomiRwX5SSJqjmDJD7Gpo9DwmQJDQPAZCcLg6AZBwJQSXJwngBIeRKCZeTGSZ4DWfQarIB4wBIqotAZPEBDiNMSKyHo0S4DZclmeIFlWUFUl2QYDmeHYwAUG+9B4LQei4NpbAUEoZB6CUskmeJkkmTJQn5cA1BEAmaRLGIGgkNgSiwLxb4GQmlL0GFJlQHlcntZZnXmPg5VOKgW5SMwXCUuIWk6Zl2W5SVckFVZxVWeo5WVaISAiBoGXMLIXDTRlWU5d1UlLUVp2iWtFVVUgsC8jG0xwiljDkhFokhR1cnvSJ4A3dQQhIGk41SPEbKUnGACu6DmIJq28j9wkrfl+R0EQm0QHhGgxug1BkDG2C+TGBS4KQX1SXcl0ib1VktgAKjGcLbBAGiINMsj0POsgZMwzC0Ad1CI3kZkkOTolC+ABQlJqTPAI6wB2iAINsGDEPUtD5iMFTYkI4VcnI4t5gkAU5LBkg6jY7j+OE7IxO4IwoV9XJlMLVJNOdUQXDkpDw3vGI7Oc9E3O8-z0DQhLICi07UkR0okaSuIgMQKCyuq1DMOyNreTqJAQsG2dlSgOgRHZBA4CW3jBNEyTjDu87EFZ3XFN2jaDw5ypwAB1zPN8wdDwR8AUfhXrkXAEZdopvL2BK1woPg+n5jMFnOd58vGiaqABiy6EkBmDtVtV7bJNEHTcOlbnI-Scv5gZJKShmTv6P75XNt2yf8TL7ry3X3aop-A-QJNBsAPq-Y+dNpifwvt-V2V1zB0wePfDGvIiLP2ttXUmdMtYwPkl-C62CxLmG0P-JBkBtrAJfugk+2BIGr3wdnRe4cAFQHuqgw+b86bUhoZfES+dYGQ2kMmEhiBWGgIwZnOhK9uFI2vtCagfwS47yxuQtBR8MHoC4dA1a5hJSqBliQokQCQGULptEDReCtGalUIwdEO8mYiOMUvCRuD9bXwsqAFMO8c5sEYEiKQjA4SyCHp1XkjcxYiQsINIgEQTBTU7hxLiPF4S21kIFKRwsQCO2HlZKKMUoh3GkErNyHlcCyE4HQEg6McKeiNE5dJsU8h0yINIJpLSClVPacKGqeSMbDT4qgWA6hUI6XiK1PQuMGDq1kO0-If4QD5CRGwUpSy2CUgJK09ZHTNlvFcPLScFhNowGAAqeIbSCh1Hxq9Dm0xETEzZPgAy0J0DTLyLMiweQFnLNKasjg6zmnNK2QCtYOyAhiEThBU2wB0AJhSpldAJBphtK8HYQcRwtQBC1IszFSyiR5FwH89Z4Ejh5GoJ8zFCZs5eHDB0vIzAKTRGwKKB48hIyqD8L2YAnZhFiHQsAJmcU6xPEsNkSA55EB0ydBBMQMZeT3QVFMyABiMjqHugrYAMZTTowKF4VQwRbj3DZXMzme1eKzzYNSPmdRIDSA4vEegtA2SQCmZ4BSeEwRgpuAog12AZrQlkJgSABRbYUGevQBA2hIDcT0DUoAA",
-            "RGB 1v1",
-            "roseFog",
-            "2023-12-06 18:38:37",
-            472,
-            83
+        self.bonk_map: Union[Bonk2Map, None] = decode_from_b64_string(
+            "ILAcJAhBFBjBzCTlMiAJgZQEoAYCS8AsgBoCaAHhgJ4BGAzAHIA22AtgJwB2EkXiIAKJkQ0YAAlYnAF4AtAKqyAbrIDuwAMKx6QwQCYAZsDER8wACLrByMeZBnxiGOLQo0GlJ5SqN1r-6R5SFUTG2ABAJRrAAtIyIAxYEYvazNPaABxYzjkcwB6AFZ8AwAXeWwNXBEoaHwASzTUYFgAeRybDMJ2z3kNevTxcwj2okgG7pRE2AApT0FIPNCkaBcJiecNJahgA1xPUZC17vlzczr0ohbGo5uQROgAFjmFrduIfMEM6g49LgAFIa8aCCNpuHZ7N6ePIARkgAGclOgAA7SVRPCBBQEoFYcSGeP4cB4Aewo0nEACcAIYANSQ93RyHmizxuTyAGsvj9-ljgDAQZ40LsWcg8gA2TDiADs1ME0BKWQxkB5y3EuOFED+AGpiaSKTS6cYGUgma9IfkKMxQGxxNRqQAZPy84Gg5CCiHq4B5DjwxEotGBJXDCA4j0gP55SkAU2YAHVqaoAFZKdR3Q3PZke-JFUrlSrVJ38sFC0N5TWi6nRaAUAx25KK5XB1Wh4DhnVkqm0iD09Omt5+CuU6AkB4tPRAwuu8Gh1yyAzTaKgZiYKj1oOiJuhsR22fiUDSfDoRrdqIvUPWT7fX4AiJ8l1NYvqtCQanSOq0eCUvKSiKYtfGDcemIUaxvGSYpsAx6MqeHrWOIDyCNEsB6MwDwANLjnevBTs2ORssA7o4fI+FeGIf52GQrgTOGbLRJq0LYIIdrYAIkBGvgsAZBQ0ToBokC4AwCySnkwkicJKYGJqomiRwX5SSJqjmDJD7Gpo9DwmQJDQPAZCcLg6AZBwJQSXJwngBIeRKCZeTGSZ4DWfQarIB4wBIqotAZPEBDiNMSKyHo0S4DZclmeIFlWUFUl2QYDmeHYwAUG+9B4LQei4NpbAUEoZB6CUskmeJkkmTJQn5cA1BEAmaRLGIGgkNgSiwLxb4GQmlL0GFJlQHlcntZZnXmPg5VOKgW5SMwXCUuIWk6Zl2W5SVckFVZxVWeo5WVaISAiBoGXMLIXDTRlWU5d1UlLUVp2iWtFVVUgsC8jG0xwiljDkhFokhR1cnvSJ4A3dQQhIGk41SPEbKUnGACu6DmIJq28j9wkrfl+R0EQm0QHhGgxug1BkDG2C+TGBS4KQX1SXcl0ib1VktgAKjGcLbBAGiINMsj0POsgZMwzC0Ad1CI3kZkkOTolC+ABQlJqTPAI6wB2iAINsGDEPUtD5iMFTYkI4VcnI4t5gkAU5LBkg6jY7j+OE7IxO4IwoV9XJlMLVJNOdUQXDkpDw3vGI7Oc9E3O8-z0DQhLICi07UkR0okaSuIgMQKCyuq1DMOyNreTqJAQsG2dlSgOgRHZBA4CW3jBNEyTjDu87EFZ3XFN2jaDw5ypwAB1zPN8wdDwR8AUfhXrkXAEZdopvL2BK1woPg+n5jMFnOd58vGiaqABiy6EkBmDtVtV7bJNEHTcOlbnI-Scv5gZJKShmTv6P75XNt2yf8TL7ry3X3aop-A-QJNBsAPq-Y+dNpifwvt-V2V1zB0wePfDGvIiLP2ttXUmdMtYwPkl-C62CxLmG0P-JBkBtrAJfugk+2BIGr3wdnRe4cAFQHuqgw+b86bUhoZfES+dYGQ2kMmEhiBWGgIwZnOhK9uFI2vtCagfwS47yxuQtBR8MHoC4dA1a5hJSqBliQokQCQGULptEDReCtGalUIwdEO8mYiOMUvCRuD9bXwsqAFMO8c5sEYEiKQjA4SyCHp1XkjcxYiQsINIgEQTBTU7hxLiPF4S21kIFKRwsQCO2HlZKKMUoh3GkErNyHlcCyE4HQEg6McKeiNE5dJsU8h0yINIJpLSClVPacKGqeSMbDT4qgWA6hUI6XiK1PQuMGDq1kO0-If4QD5CRGwUpSy2CUgJK09ZHTNlvFcPLScFhNowGAAqeIbSCh1Hxq9Dm0xETEzZPgAy0J0DTLyLMiweQFnLNKasjg6zmnNK2QCtYOyAhiEThBU2wB0AJhSpldAJBphtK8HYQcRwtQBC1IszFSyiR5FwH89Z4Ejh5GoJ8zFCZs5eHDB0vIzAKTRGwKKB48hIyqD8L2YAnZhFiHQsAJmcU6xPEsNkSA55EB0ydBBMQMZeT3QVFMyABiMjqHugrYAMZTTowKF4VQwRbj3DZXMzme1eKzzYNSPmdRIDSA4vEegtA2SQCmZ4BSeEwRgpuAog12AZrQlkJgSABRbYUGevQBA2hIDcT0DUoAA"
         )
-        self.requested_maps: List[MapRequestAsHost] = []
+        self.requested_maps: List[MapRequestHostPov] = []
         self.join_link = ""
         self.socket_client = socketio.AsyncClient(ssl_verify=False)
         self.__is_created_by_bot: bool = is_created_by_bot
@@ -105,9 +95,7 @@ class Game:
         self.__game_join_params: Union[list, None] = game_join_params
         self.__is_connected = False
 
-        asyncio.run(self.__connect())
-
-    async def __connect(self) -> None:
+    async def connect(self) -> None:
         """Method that establishes connection with game."""
 
         self.bot.games.append(self)
@@ -138,7 +126,7 @@ class Game:
         """
 
         if not self.is_host:
-            self.bot.event_emitter.emit(
+            await self.bot.event_emitter.emit_async(
                 "error",
                 GameConnectionError("Cannot set teamlock, bot is not a host", self)
             )
@@ -171,7 +159,7 @@ class Game:
         """Resets ready mark for all players in the game."""
 
         if not self.is_host:
-            self.bot.event_emitter.emit(
+            await self.bot.event_emitter.emit_async(
                 "error",
                 GameConnectionError("Cannot reset ready, bot is not a host", self)
             )
@@ -190,7 +178,7 @@ class Game:
         """
 
         if not self.is_host:
-            self.bot.event_emitter.emit(
+            await self.bot.event_emitter.emit_async(
                 "error",
                 GameConnectionError("Cannot set mode, bot is not a host", self)
             )
@@ -207,7 +195,7 @@ class Game:
         """
 
         if not self.is_host:
-            self.bot.event_emitter.emit(
+            await self.bot.event_emitter.emit_async(
                 "error",
                 GameConnectionError("Cannot set rounds, bot is not a host", self)
             )
@@ -216,7 +204,7 @@ class Game:
 
             self.rounds = rounds
 
-    async def set_map(self, bonk_map: Union[OwnMap, Bonk2Map, Bonk1Map]) -> None:
+    async def set_map(self, bonk_map: Union[PartialOwnBonkMap, PartialBonk2Map, PartialBonk1Map]) -> None:
         """
         Change game map.
 
@@ -224,44 +212,57 @@ class Game:
         """
 
         if not self.is_host:
-            self.bot.event_emitter.emit(
+            await self.bot.event_emitter.emit_async(
                 "error",
                 GameConnectionError("Cannot set map, bot is not a host", self)
             )
         else:
-            if not (
-                isinstance(bonk_map, OwnMap) or
-                isinstance(bonk_map, Bonk2Map) or
-                isinstance(bonk_map, Bonk1Map)
+            if (
+                isinstance(bonk_map, PartialOwnBonkMap) or
+                isinstance(bonk_map, PartialBonk2Map) or
+                isinstance(bonk_map, PartialBonk1Map)
             ):
+                await self.socket_client.emit(23, {"m": bonk_map.encoded_data})
+
+                self.bonk_map = bonk_map.decoded_data
+            elif isinstance(bonk_map, Bonk2Map):
+                self.bonk_map = bonk_map
+
+                await self.socket_client.emit(23, {"m": encode_to_b64_string(bonk_map)})
+            else:
                 raise TypeError("Input param is not a map")
 
-            await self.socket_client.emit(23, {"m": bonk_map.encoded_data})
-
-            self.bonk_map = bonk_map
-
-    async def request_map(self, bonk_map: Union[OwnMap, Bonk2Map, Bonk1Map]) -> None:
+    async def request_map(self, bonk_map: Union[PartialOwnBonkMap, PartialBonk2Map, PartialBonk1Map, Bonk2Map]) -> None:
         """
         Suggest map in the chat.
 
         :param bonk_map: the map that is wanted to be suggested.
         """
 
-        if not (
-            isinstance(bonk_map, OwnMap) or
-            isinstance(bonk_map, Bonk2Map) or
-            isinstance(bonk_map, Bonk1Map)
+        if (
+            isinstance(bonk_map, PartialOwnBonkMap) or
+            isinstance(bonk_map, PartialBonk2Map) or
+            isinstance(bonk_map, PartialBonk1Map)
         ):
+            await self.socket_client.emit(
+                27,
+                {
+                    "m": bonk_map.encoded_data,
+                    "mapauthor": bonk_map.author_name,
+                    "mapname": bonk_map.name
+                }
+            )
+        elif isinstance(bonk_map, Bonk2Map):
+            await self.socket_client.emit(
+                27,
+                {
+                    "m": encode_to_b64_string(bonk_map),
+                    "mapauthor": bonk_map.m.a,
+                    "mapname": bonk_map.m.n
+                }
+            )
+        else:
             raise TypeError("Input param is not a map")
-
-        await self.socket_client.emit(
-            27,
-            {
-                "m": bonk_map.encoded_data,
-                "mapauthor": bonk_map.author_name,
-                "mapname": bonk_map.name
-            }
-        )
 
     async def set_teams(self, flag: bool) -> None:
         """
@@ -271,7 +272,7 @@ class Game:
         """
 
         if not self.is_host:
-            self.bot.event_emitter.emit(
+            await self.bot.event_emitter.emit_async(
                 "error",
                 GameConnectionError("Cannot set teams, bot is not a host", self)
             )
@@ -305,7 +306,7 @@ class Game:
         """Removes the game from room list."""
 
         if not self.is_host:
-            self.bot.event_emitter.emit(
+            await self.bot.event_emitter.emit_async(
                 "error",
                 GameConnectionError("Cannot close game, bot is not a host", self)
             )
@@ -321,7 +322,7 @@ class Game:
         """
 
         if not self.is_host:
-            self.bot.event_emitter.emit(
+            await self.bot.event_emitter.emit_async(
                 "error",
                 GameConnectionError("Cannot set room name, bot is not a host", self)
             )
@@ -338,7 +339,7 @@ class Game:
         """
 
         if not self.is_host:
-            self.bot.event_emitter.emit(
+            await self.bot.event_emitter.emit_async(
                 "error",
                 GameConnectionError("Cannot set room password, bot is not a host", self)
             )
@@ -355,7 +356,7 @@ class Game:
         self.__is_connected = False
         self.bot.games.remove(self)
 
-        self.bot.event_emitter.emit("game_disconnect", self)
+        await self.bot.event_emitter.emit_async("game_disconnect", self)
 
     @staticmethod
     def __get_peer_id() -> str:
@@ -363,7 +364,25 @@ class Game:
 
         alph = list(ascii_lowercase + "0123456789")
         shuffle(alph)
+
         return "".join(alph[:10]) + "000000"
+
+    @staticmethod
+    def __avatar_from_payload(avatar_payload) -> Avatar:
+        """Normalizes avatar payload into an Avatar instance."""
+
+        if isinstance(avatar_payload, Avatar):
+            return avatar_payload
+
+        if avatar_payload is None:
+            return Avatar()
+
+        if isinstance(avatar_payload, (dict, list)):
+            avatar_json = json.dumps(avatar_payload, separators=(",", ":"))
+        else:
+            avatar_json = str(avatar_payload)
+
+        return Avatar.from_json_string(avatar_json)
 
     def __get_player_from_short_id(self, short_id: int) -> "Player":
         """Finds player in the room by their short id."""
@@ -428,7 +447,7 @@ class Game:
                         "quick": False,
                         "mode": "custom",
                         "token": self.bot.token,
-                        "avatar": self.bot.main_avatar.to_json()
+                        "avatar": self.bot.main_avatar.to_dict()
                     }
                 )
             else:
@@ -451,7 +470,7 @@ class Game:
                         "quick": False,
                         "mode": "custom",
                         "guestName": self.bot.username,
-                        "avatar": self.bot.main_avatar.to_json()
+                        "avatar": self.bot.main_avatar.to_dict()
                     }
                 )
 
@@ -497,7 +516,7 @@ class Game:
         error = room_data.get("e")
 
         if error:
-            self.bot.event_emitter.emit("error", GameConnectionError(error, self))
+            await self.bot.event_emitter.emit_async("error", GameConnectionError(error, self))
             return
 
         @self.socket_client.event
@@ -514,7 +533,7 @@ class Game:
                         "peerID": self.__get_peer_id(),
                         "bypass": "",
                         "token": self.bot.token,
-                        "avatar": self.bot.main_avatar.to_json()
+                        "avatar": self.bot.main_avatar.to_dict()
                     }
                 )
             else:
@@ -529,32 +548,32 @@ class Game:
                         "peerID": self.__get_peer_id(),
                         "bypass": "",
                         "guestName": self.bot.username,
-                        "avatar": self.bot.main_avatar.to_json()
+                        "avatar": self.bot.main_avatar.to_dict()
                     }
                 )
 
         await self.__load_socket_events()
-
         await self.socket_client.connect(f"https://{room_data['server']}.bonk.io/socket.io")
         await self.__keep_alive()
 
-    async def __join_from_room_link(self, link: str, password="") -> None:
+    async def __join_from_room_link(self, link: str, password: str = "") -> None:
         """
         Sends join packets to join a room from link.
 
         :param link: room link; looks like `https://bonk.io/607883jdyrv`.
         """
 
-        pattern = re.compile(
-            r'{"address":"(.*?)","roomname":"(.*?)","server":"(.*?)","passbypass":"(.*?)","r":"success"}'
-        )
+        join_id = link.split("/")[-1]
+        bypass = "".join([c for c in join_id if c.isalpha()])
 
-        async with self.bot.aiohttp_session.get(link) as resp:
-            data = await resp.text()
+        async with self.bot.aiohttp_session.post(
+            url=endpoints["auto_join"],
+            data={"joinID": join_id}
+        ) as resp:
+            data = await resp.json()
 
-        try:
-            room_data = pattern.findall(data)[0]
-            self.room_name = room_data[1]
+        if data["r"] == "success":
+            self.room_name = data["roomname"]
 
             @self.socket_client.event
             async def connect() -> None:
@@ -562,39 +581,38 @@ class Game:
                     await self.socket_client.emit(
                         13,
                         {
-                            "joinID": room_data[0],
+                            "joinID": data["address"],
                             "roomPassword": password,
                             "guest": False,
                             "dbid": 2,
                             "version": PROTOCOL_VERSION,
                             "peerID": self.__get_peer_id(),
-                            "bypass": room_data[3],
+                            "bypass": bypass,
                             "token": self.bot.token,
-                            "avatar": self.bot.main_avatar.to_json()
+                            "avatar": self.bot.main_avatar.to_dict()
                         }
                     )
                 else:
                     await self.socket_client.emit(
                         13,
                         {
-                            "joinID": room_data[0],
+                            "joinID": data["address"],
                             "roomPassword": password,
                             "guest": True,
                             "dbid": 2,
                             "version": PROTOCOL_VERSION,
                             "peerID": self.__get_peer_id(),
-                            "bypass": room_data[3],
+                            "bypass": bypass,
                             "guestName": self.bot.username,
-                            "avatar": self.bot.main_avatar.to_json()
+                            "avatar": self.bot.main_avatar.to_dict()
                         }
                     )
 
             await self.__load_socket_events()
-
-            await self.socket_client.connect(f"https://{room_data[2]}.bonk.io/socket.io")
+            await self.socket_client.connect(f"https://{data['server']}.bonk.io/socket.io")
             await self.__keep_alive()
-        except IndexError:
-            self.bot.event_emitter.emit(
+        else:
+            await self.bot.event_emitter.emit_async(
                 "error",
                 GameConnectionError("Room is not found", self)
             )
@@ -618,7 +636,7 @@ class Game:
         error = room_data.get("e")
 
         if error:
-            self.bot.event_emitter.emit("error", GameConnectionError(error, self))
+            await self.bot.event_emitter.emit_async("error", GameConnectionError(error, self))
             return
 
         @self.socket_client.event
@@ -635,7 +653,7 @@ class Game:
                         "peerID": self.__get_peer_id(),
                         "bypass": "",
                         "token": self.bot.token,
-                        "avatar": self.bot.main_avatar.to_json()
+                        "avatar": self.bot.main_avatar.to_dict()
                     }
                 )
             else:
@@ -650,12 +668,11 @@ class Game:
                         "peerID": self.__get_peer_id(),
                         "bypass": "",
                         "guestName": self.bot.username,
-                        "avatar": self.bot.main_avatar.to_json()
+                        "avatar": self.bot.main_avatar.to_dict()
                     }
                 )
 
         await self.__load_socket_events()
-
         await self.socket_client.connect(f"https://{room_data['server']}.bonk.io/socket.io")
         await self.__keep_alive()
 
@@ -690,7 +707,7 @@ class Game:
                 if player.is_bot:
                     self.bot_ping = player_ping
 
-                self.bot.event_emitter.emit("player_ping", player, player_ping)
+                await self.bot.event_emitter.emit_async("player_ping", player, player_ping)
 
             if not self.is_tabbed:
                 await self.socket_client.emit(1, {"id": ping_id})
@@ -723,7 +740,7 @@ class Game:
                             player["tabbed"],
                             team_from_number(player["team"]),
                             player_short_id,
-                            Avatar().load_from_json(player["avatar"])
+                            self.__avatar_from_payload(player["avatar"])
                         )
                     )
 
@@ -735,7 +752,7 @@ class Game:
                     self._teams = True
 
             self.__is_connected = True
-            self.bot.event_emitter.emit("game_connect", self)
+            await self.bot.event_emitter.emit_async("game_connect", self)
 
         @self.socket_client.on(4)
         async def on_player_join(
@@ -760,7 +777,7 @@ class Game:
                 False,
                 Team.SPECTATOR if self.team_lock or self.teams else Team.FFA,
                 short_id,
-                Avatar().load_from_json(avatar)
+                self.__avatar_from_payload(avatar)
             )
 
             self.players.append(joined_player)
@@ -786,12 +803,12 @@ class Game:
                     "spawns": [],
                     "capZones": [],
                     "m": {
-                        "a": self.bonk_map.author_name,
-                        "n": self.bonk_map.name,
+                        "a": "",
+                        "n": "",
                         "dbv": 2,
-                        "dbid": self.bonk_map.map_id,
+                        "dbid": 0,
                         "authid": -1,
-                        "date": self.bonk_map.creation_date,
+                        "date": "",
                         "rxid": 0,
                         "rxn": "",
                         "rxa": "",
@@ -799,19 +816,24 @@ class Game:
                         "cr": [
                             "💀"
                         ],
-                        "pub": self.bonk_map.is_published if isinstance(self.bonk_map, OwnMap) else True,
+                        "pub": False,
                         "mo": "",
-                        "vu": self.bonk_map.votes_up,
-                        "vd": self.bonk_map.votes_down
+                        "vu": 0,
+                        "vd": 0
                     }
                 }
+
+                if isinstance(self.bonk_map, Bonk2Map):
+                    decoded_map_data = self.bonk_map.to_dict()
+                else:
+                    decoded_map_data = bad_map_data
 
                 await self.socket_client.emit(
                     11,
                     {
                         "sid": short_id,
                         "gs": {
-                            "map": self.bonk_map.decoded_data if isinstance(self.bonk_map, OwnMap) or isinstance(self.bonk_map, Bonk2Map) else bad_map_data,
+                            "map": decoded_map_data,
                             "gt": 2,
                             "wl": self.rounds,
                             "q": False,
@@ -819,18 +841,18 @@ class Game:
                             "tea": self.teams,
                             "ga": self.mode.engine,
                             "mo": self.mode.short_name,
-                            "bal": []
+                            "bal": [p.balance for p in self.players]
                         }
                     }
                 )
-            self.bot.event_emitter.emit("player_join", joined_player)
+            await self.bot.event_emitter.emit_async("player_join", joined_player)
 
         @self.socket_client.on(5)
         async def on_player_leave(player_short_id: int, w) -> None:
             left_player = self.__get_player_from_short_id(player_short_id)
             self.players.remove(left_player)
 
-            self.bot.event_emitter.emit("player_leave", left_player)
+            await self.bot.event_emitter.emit_async("player_leave", left_player)
 
         @self.socket_client.on(6)
         async def on_host_leave(old_host_id: int, new_host_id: int, w) -> None:
@@ -838,15 +860,19 @@ class Game:
                 old_host = self.__get_player_from_short_id(old_host_id)
                 new_host = self.__get_player_from_short_id(new_host_id)
 
-                if old_host.is_bot and not new_host.is_bot:
-                    self._is_host = False
-                elif not old_host.is_bot and new_host.is_bot:
-                    self._is_host = True
-
+                old_host.is_host = False
                 new_host.is_host = True
-                self.bot.event_emitter.emit("host_leave", old_host, new_host)
+
+                if old_host.is_bot and not new_host.is_bot:
+                    self.is_host = False
+                elif not old_host.is_bot and new_host.is_bot:
+                    self.is_host = True
+
+                self.host = new_host
+
+                await self.bot.event_emitter.emit_async("host_leave", old_host, new_host)
             else:
-                self.bot.event_emitter.emit("game_close", self)
+                await self.bot.event_emitter.emit_async("game_close", self)
 
         @self.socket_client.on(7)
         async def on_player_move(player_short_id: int, move_data: dict) -> None:
@@ -862,7 +888,7 @@ class Game:
                     move_data["f"],
                     move_data["c"]
                 )
-                self.bot.event_emitter.emit("player_move", player_move)
+                await self.bot.event_emitter.emit_async("player_move", player_move)
             except KeyError:
                 pass
 
@@ -872,12 +898,12 @@ class Game:
             player.is_ready = flag
 
             if flag:
-                self.bot.event_emitter.emit("player_ready", player)
+                await self.bot.event_emitter.emit_async("player_ready", player)
 
         @self.socket_client.on(13)
         async def on_match_abort() -> None:
             self._in_lobby = True
-            self.bot.event_emitter.emit("match_abort", self)
+            await self.bot.event_emitter.emit_async("match_abort", self)
 
         @self.socket_client.on(15)
         async def on_match_start(timestamp: int, map_data: str, additional_data: dict) -> None:
@@ -885,12 +911,12 @@ class Game:
             new_match = Match(self.bot, self, self.bonk_map)
 
             self._match = new_match
-            self.bot.event_emitter.emit("match_start", new_match)
+            await self.bot.event_emitter.emit_async("match_start", new_match)
 
         @self.socket_client.on(16)
         async def on_error(error) -> None:
             if error != "rate_limit_pong":
-                self.bot.event_emitter.emit("error", GameConnectionError(error, self))
+                await self.bot.event_emitter.emit_async("error", GameConnectionError(error, self))
 
             if error in [
                 "invalid_params",
@@ -911,16 +937,16 @@ class Game:
             team = team_from_number(team_number)
             player.team = team
 
-            self.bot.event_emitter.emit("player_team_change", player, team)
+            await self.bot.event_emitter.emit_async("player_team_change", player, team)
 
         @self.socket_client.on(19)
         async def on_team_lock(flag: bool) -> None:
             self._team_lock = flag
 
             if flag:
-                self.bot.event_emitter.emit("team_lock", self)
+                await self.bot.event_emitter.emit_async("team_lock", self)
             else:
-                self.bot.event_emitter.emit("team_unlock", self)
+                await self.bot.event_emitter.emit_async("team_unlock", self)
 
         @self.socket_client.on(20)
         async def on_message(player_short_id: int, message: str) -> None:
@@ -929,13 +955,19 @@ class Game:
 
             self.messages.append(_message)
 
-            self.bot.event_emitter.emit("message", _message)
+            await self.bot.event_emitter.emit_async("message", _message)
 
         @self.socket_client.on(21)
         async def on_lobby_load(data: dict) -> None:
-            self._mode = mode_from_short_name(data["mo"])
-            self._team_lock = data["tl"]
-            self._rounds = data["wl"]
+            self.mode = mode_from_short_name(data["mo"])
+            self.team_lock = data["tl"]
+            self.rounds = data["wl"]
+            self.teams = data["tea"]
+            self.bonk_map = Bonk2Map.from_dict(data["map"])
+
+            if data["bal"]:
+                for i in range(len(self.players)):
+                    self.players[i].balance = data["bal"][i]
 
         @self.socket_client.on(24)
         async def on_player_kick(player_short_id: int, kick_only: bool) -> None:
@@ -943,87 +975,77 @@ class Game:
 
             if kick_only:
                 if player.is_bot:
-                    self.bot.event_emitter.emit("bot_kick", self)
+                    await self.bot.event_emitter.emit_async("bot_kick", self)
                     await self.leave()
                 else:
-                    self.bot.event_emitter.emit("player_kick", player)
+                    await self.bot.event_emitter.emit_async("player_kick", player)
             else:
                 if player.is_bot:
-                    self.bot.event_emitter.emit("bot_ban", self)
+                    await self.bot.event_emitter.emit_async("bot_ban", self)
                     await self.leave()
                     self._is_banned = True
                 else:
-                    self.bot.event_emitter.emit("player_ban", player)
+                    await self.bot.event_emitter.emit_async("player_ban", player)
 
         @self.socket_client.on(26)
         async def on_mode_change(ga, mode_short_name: str) -> None:
-            self._mode = mode_from_short_name(mode_short_name)
+            self.mode = mode_from_short_name(mode_short_name)
 
-            self.bot.event_emitter.emit("mode_change", self, self.mode)
+            await self.bot.event_emitter.emit_async("mode_change", self, self.mode)
 
         @self.socket_client.on(27)
         async def on_rounds_change(rounds: int) -> None:
-            self._rounds = rounds
-            self.bot.event_emitter.emit("rounds_change", self, rounds)
+            self.rounds = rounds
+
+            await self.bot.event_emitter.emit_async("rounds_change", self, rounds)
 
         @self.socket_client.on(29)
         async def on_map_change(map_encoded_data: str) -> None:
-            map_decoded_data = decode_bonk_map_metadata(map_encoded_data)
+            self.bonk_map = decode_from_b64_string(map_encoded_data)
 
-            new_map = Bonk2Map(
-                self.bot,
-                map_decoded_data["m"]["dbid"],
-                map_encoded_data,
-                map_decoded_data["m"]["n"],
-                map_decoded_data["m"]["a"],
-                map_decoded_data["m"]["date"],
-                map_decoded_data["m"]["vu"],
-                map_decoded_data["m"]["vd"]
-            )
-
-            self._bonk_map = new_map
-            self.bot.event_emitter.emit("map_change", self, new_map)
+            await self.bot.event_emitter.emit_async("map_change", self, self.bonk_map)
 
         @self.socket_client.on(32)
         async def on_afk_warn() -> None:
-            self.bot.event_emitter.emit("afk_warn", self)
+            await self.bot.event_emitter.emit_async("afk_warn", self)
 
         @self.socket_client.on(33)
         async def on_map_request_host(level_data: str, player_short_id: int) -> None:
             player = self.__get_player_from_short_id(player_short_id)
-            map_request = MapRequestAsHost(self, self.bot, player, level_data)
+            map_request = MapRequestHostPov(self, self.bot, player, level_data)
 
             self.requested_maps.append(map_request)
-            self.bot.event_emitter.emit("map_request_host", map_request)
+
+            await self.bot.event_emitter.emit_async("map_request_host", map_request)
 
         @self.socket_client.on(34)
         async def on_map_request_client(map_name: str, author: str, player_short_id: int) -> None:
             player = self.__get_player_from_short_id(player_short_id)
-            map_request = MapRequestAsClient(self, self.bot, map_name, author, player)
+            map_request = MapRequestClientPov(self, self.bot, map_name, author, player)
 
-            self.bot.event_emitter.emit("map_request_client", map_request)
+            await self.bot.event_emitter.emit_async("map_request_client", map_request)
 
         @self.socket_client.on(36)
         async def on_player_balance(player_short_id: int, percents: int) -> None:
             player = self.__get_player_from_short_id(player_short_id)
-            player.balanced_by = percents
+            player.balance = percents
 
-            self.bot.event_emitter.emit("player_balance", player, percents)
+            await self.bot.event_emitter.emit_async("player_balance", player, percents)
 
         @self.socket_client.on(39)
         async def on_teams_toggle(flag: bool) -> None:
             self._teams = flag
 
             if flag:
-                self.bot.event_emitter.emit("teams_on", self)
+                await self.bot.event_emitter.emit_async("teams_on", self)
             else:
-                self.bot.event_emitter.emit("teams_off", self)
+                await self.bot.event_emitter.emit_async("teams_off", self)
 
         @self.socket_client.on(40)
         async def on_replay(player_short_id: int) -> None:
             player = self.__get_player_from_short_id(player_short_id)
 
-            self.bot.event_emitter.emit("replay", player)
+            await self.bot.event_emitter.emit_async("replay", player)
 
         @self.socket_client.on(41)
         async def on_host_change(data: dict) -> None:
@@ -1031,30 +1053,31 @@ class Game:
             new_host = self.__get_player_from_short_id(data["newHost"])
 
             if old_host.is_bot and not new_host.is_bot:
-                self._is_host = False
+                self.is_host = False
             elif not old_host.is_bot and new_host.is_bot:
-                self._is_host = True
+                self.is_host = True
 
             old_host.is_host = False
             new_host.is_host = True
+
             self.host = new_host
 
-            self.bot.event_emitter.emit("host_change", old_host, new_host)
+            await self.bot.event_emitter.emit_async("host_change", old_host, new_host)
 
         @self.socket_client.on(42)
         async def on_friend_request(player_short_id: int) -> None:
             player = self.__get_player_from_short_id(player_short_id)
             friend_request = FriendRequest(self, self.bot, player)
 
-            self.bot.event_emitter.emit("friend_request", friend_request)
+            await self.bot.event_emitter.emit_async("friend_request", friend_request)
 
         @self.socket_client.on(43)
         async def on_match_countdown(starts_in_seconds: int) -> None:
-            self.bot.event_emitter.emit("match_countdown", self, starts_in_seconds)
+            await self.bot.event_emitter.emit_async("match_countdown", self, starts_in_seconds)
 
         @self.socket_client.on(44)
         async def on_match_countdown_abort() -> None:
-            self.bot.event_emitter.emit("match_countdown_abort", self)
+            await self.bot.event_emitter.emit_async("match_countdown_abort", self)
 
         @self.socket_client.on(45)
         async def on_player_level_up(data: dict) -> None:
@@ -1063,7 +1086,7 @@ class Game:
 
             player.level = new_level
 
-            self.bot.event_emitter.emit("player_level_up", player, new_level)
+            await self.bot.event_emitter.emit_async("player_level_up", player, new_level)
 
         @self.socket_client.on(46)
         async def on_xp_gain(data: dict) -> None:
@@ -1075,7 +1098,7 @@ class Game:
             if new_token:
                 self.bot.token = new_token
 
-            self.bot.event_emitter.emit("xp_gain", self, new_xp)
+            await self.bot.event_emitter.emit_async("xp_gain", self, new_xp)
 
         @self.socket_client.on(48)
         async def on_match_info(data: dict) -> None:
@@ -1087,7 +1110,7 @@ class Game:
             self.join_link = f"https://bonk.io/{join_link_number:06}{bypass}"
             self.__is_connected = True
 
-            self.bot.event_emitter.emit("game_connect", self)
+            await self.bot.event_emitter.emit_async("game_connect", self)
 
         @self.socket_client.on(52)
         async def on_player_tab(player_short_id: int, status: bool) -> None:
@@ -1095,19 +1118,19 @@ class Game:
             player.is_tabbed = status
 
             if status:
-                self.bot.event_emitter.emit("player_tab", player)
+                await self.bot.event_emitter.emit_async("player_tab", player)
             else:
-                self.bot.event_emitter.emit("player_tab_reset", player)
+                await self.bot.event_emitter.emit_async("player_tab_reset", player)
 
         @self.socket_client.on(58)
         async def on_new_room_name(new_room_name: str) -> None:
             self.room_name = new_room_name
 
-            self.bot.event_emitter.emit("new_room_name", self, new_room_name)
+            await self.bot.event_emitter.emit_async("new_room_name", self, new_room_name)
 
         @self.socket_client.on(59)
         async def on_new_room_password(flag: int) -> None:
             if bool(flag):
-                self.bot.event_emitter.emit("new_room_password", self)
+                await self.bot.event_emitter.emit_async("new_room_password", self)
             else:
-                self.bot.event_emitter.emit("room_password_clear", self)
+                await self.bot.event_emitter.emit_async("room_password_clear", self)

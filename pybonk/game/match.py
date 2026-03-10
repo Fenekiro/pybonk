@@ -2,13 +2,11 @@ import asyncio
 import time
 from typing import Union, List, TYPE_CHECKING
 
-from pybonk.game.game_inputs import GameInput
-from pybonk.maps.bonk1_map import Bonk1Map
-from pybonk.maps.bonk2_map import Bonk2Map
-from pybonk.maps.own_map import OwnMap
+from pybonk.game.player_input import PlayerInput
+from pybonk.maps import Bonk2Map
 
 if TYPE_CHECKING:
-    from pybonk.bot.bonk_bot import BonkBot
+    from pybonk.bot.bonk_bot_base import BonkBotBase
     from pybonk.bot.guest_bonk_bot import GuestBonkBot
     from pybonk.bot.account_bonk_bot import AccountBonkBot
     from pybonk.game.game import Game
@@ -17,15 +15,15 @@ if TYPE_CHECKING:
 class Match:
     def __init__(
         self,
-        bot: "Union[BonkBot, GuestBonkBot, AccountBonkBot]",
+        bot: "Union[BonkBotBase, GuestBonkBot, AccountBonkBot]",
         game: "Game",
-        bonk_map: Union[OwnMap, Bonk2Map, Bonk1Map],
+        bonk_map: Bonk2Map,
         offset=0
     ) -> None:
-        self.bot: "Union[BonkBot, GuestBonkBot, AccountBonkBot]" = bot
+        self.bot: "Union[BonkBotBase, GuestBonkBot, AccountBonkBot]" = bot
         self.game: "Game" = game
-        self.bonk_map: Union[OwnMap, Bonk2Map, Bonk1Map] = bonk_map
-        self.inputs: List[GameInput] = []
+        self.bonk_map: Bonk2Map = bonk_map
+        self.inputs: List[PlayerInput] = []
         self.__offset: int = offset
         self.__start = time.time()
 
@@ -33,7 +31,7 @@ class Match:
     def current_frame(self) -> int:
         return int((time.time() - self.__start) * 30) + self.__offset
 
-    async def move(self, time_in_ms: int, *input_keys: GameInput) -> None:
+    async def move(self, time_in_ms: int, *input_keys: PlayerInput) -> None:
         """
         Presses input key(s) in the game.
 

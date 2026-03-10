@@ -4,73 +4,9 @@ from urllib.parse import unquote
 
 from lzstring import LZString
 
-from pybonk.avatar.avatar_layer import Layer
-from pybonk.game.game_inputs import GameInput
 from pybonk.parsers.byte_buffer import ByteBuffer
 from pybonk.game.teams import Team
 from pybonk.types.game_modes import *
-from pybonk.avatar.avatar import Avatar
-
-
-def decode_avatar(encoded_avatar: str) -> Avatar:
-    """
-    Used to decode bonk avatars.
-
-    :param encoded_avatar: base64 encoded avatar data.
-    """
-
-    def decode_layer(buffer: ByteBuffer) -> Union[dict, None]:
-        layer_data = {}
-
-        if buffer.read_byte() == 10:
-            if buffer.read_byte() == 7:
-                for _ in range(3):
-                    buffer.read_byte()
-
-            buffer.read_short()
-
-            layer_data["id"] = buffer.read_short()
-            layer_data["scale"] = buffer.read_float()
-            layer_data["angle"] = buffer.read_float()
-            layer_data["x"] = buffer.read_float()
-            layer_data["y"] = buffer.read_float()
-            layer_data["flipX"] = buffer.read_boolean()
-            layer_data["flipY"] = buffer.read_boolean()
-            layer_data["color"] = buffer.read_int()
-
-            return layer_data
-
-        return None
-
-    if encoded_avatar == "":
-        return Avatar().load_from_json({"layers": [], "bc": 4492031})
-
-    byte_buffer = ByteBuffer(base64.b64decode(unquote(encoded_avatar)))
-    encoded_avatar = Avatar()
-
-    byte_buffer.read_padding()
-
-    shapes_count = (int(byte_buffer.read_byte()) - 1) // 2
-    wtf_chaz = byte_buffer.read_byte()
-
-    while wtf_chaz != 1:
-        if wtf_chaz == 3:
-            byte_buffer.read_byte()
-        elif wtf_chaz == 5:
-            byte_buffer.read_byte()
-            byte_buffer.read_byte()
-
-        wtf_chaz = byte_buffer.read_byte()
-
-    for _ in range(shapes_count):
-        layer = decode_layer(byte_buffer)
-
-        if layer:
-            encoded_avatar.layers.append(Layer(**layer))
-
-    encoded_avatar.base_color = byte_buffer.read_int()
-
-    return encoded_avatar
 
 
 def decode_bonk_map_metadata(encoded_map: str) -> dict:
@@ -546,51 +482,3 @@ def mode_from_short_name(short_name: str) -> GameMode:
     }
 
     return modes[short_name]
-
-
-def move_direction_from_number(number: int) -> List[GameInput]:
-    """
-    Parses the move bits to get input keys pressed for move.
-
-    :param number: move bits.
-    """
-
-    heavy = 15 < number < 32
-    special = 31 < number < 46
-    heavy_and_special = number > 45
-    movement_clear_number = number
-    inputs = []
-
-    if heavy:
-        movement_clear_number -= 16
-        inputs.append(GameInput.HEAVY)
-    elif special:
-        movement_clear_number -= 32
-        inputs.append(GameInput.SPECIAL)
-    elif heavy_and_special:
-        movement_clear_number -= 48
-        inputs.append(GameInput.HEAVY)
-        inputs.append(GameInput.SPECIAL)
-
-    move_directions = {
-        0: [GameInput.NONE],
-        1: [GameInput.LEFT],
-        2: [GameInput.RIGHT],
-        3: [GameInput.LEFT, GameInput.RIGHT],
-        4: [GameInput.UP],
-        5: [GameInput.UP, GameInput.LEFT],
-        6: [GameInput.UP, GameInput.RIGHT],
-        7: [GameInput.UP, GameInput.LEFT, GameInput.RIGHT],
-        8: [GameInput.DOWN],
-        9: [GameInput.DOWN, GameInput.LEFT],
-        10: [GameInput.DOWN, GameInput.RIGHT],
-        11: [GameInput.DOWN, GameInput.LEFT, GameInput.RIGHT],
-        12: [GameInput.UP, GameInput.DOWN],
-        13: [GameInput.UP, GameInput.DOWN, GameInput.LEFT],
-        14: [GameInput.UP, GameInput.DOWN, GameInput.RIGHT],
-        15: [GameInput.UP, GameInput.DOWN, GameInput.LEFT, GameInput.RIGHT]
-    }
-
-    inputs.extend(move_directions[movement_clear_number])
-
-    return inputs
