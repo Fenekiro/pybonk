@@ -1,3 +1,5 @@
+UNFINISHED!!!
+
 # bonk_bot
 User-friendly async python framework for writing bots in bonk.io.
 Supported python versions: 3.8+
